@@ -3,13 +3,18 @@ if (!requireNamespace("rsconnect", quietly = TRUE)) {
 }
 
 # Shinyアプリのメインファイル名を指定（エラーログに基づき "example.R" に変更）
-app_primary_doc <- "example.R"
+app_primary_doc <- "app.R"
 
 if (file.exists(app_primary_doc)) {
   # メインファイルを明示的に指定して manifest.json を生成する
   # これにより、他のファイルが誤って Quarto ドキュメントとして判定されるのを防ぎます
   rsconnect::writeManifest(appDir = ".", appPrimaryDoc = app_primary_doc)
-  message("manifest.json の生成が完了しました。")
+
+  if (file.exists("manifest.json")) {
+    message("成功: manifest.json が生成されました。")
+  } else {
+    stop("エラー: manifest.json が生成されませんでした。")
+  }
 } else {
   warning(paste0(
     "メインファイル '",
