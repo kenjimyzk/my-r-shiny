@@ -38,7 +38,20 @@ ui <- fluidPage(
     ),
 
     mainPanel(
-      plotOutput("islmPlot"),
+      tabsetPanel(
+        tabPanel(
+          "財市場 (45度線分析)",
+          plotOutput("goodsPlot", width = "600px", height = "600px")
+        ),
+        tabPanel(
+          "貨幣市場",
+          plotOutput("moneyPlot", width = "600px", height = "600px")
+        ),
+        tabPanel(
+          "IS-LM分析",
+          plotOutput("islmPlot", width = "600px", height = "600px")
+        )
+      ),
       verbatimTextOutput("equilibrium_text"),
       wellPanel(
         h5("モデルの方程式:"),
@@ -54,6 +67,20 @@ ui <- fluidPage(
 server <- function(input, output) {
   # 均衡点の計算を行うリアクティブ式
   calc_equilibrium <- reactive({
+    # 入力値が揃っているか確認（数値入力欄が空の場合のエラー防止）
+    req(
+      input$C0,
+      input$I0,
+      input$G,
+      input$T,
+      input$c,
+      input$b,
+      input$M,
+      input$P,
+      input$k,
+      input$h
+    )
+
     # パラメータの取得
     C0 <- input$C0
     I0 <- input$I0
@@ -89,20 +116,123 @@ server <- function(input, output) {
     list(Y = Y_star, r = r_star, A = A)
   })
 
+  # 共通の日本語フォント設定関数
+  set_font <- function() {
+    if (Sys.info()["sysname"] == "Darwin") {
+      par(family = "HiraKakuProN-W3")
+    }
+  }
+
+  # 1. 財市場 (45度線分析)
+  output$goodsPlot <- renderPlot({
+    eq <- calc_equilibrium()
+    set_font()
+
+    # 総支出 AE = C + I + G
+    # C = C0 + c(Y - T)
+    # I = I0 - b * r (ここで r は均衡利子率を使用)
+    I_val <- input$I0 - (input$b * eq$r)
+    Intercept <- input$C0 - (input$c * input$T) + I_val + input$G
+
+    xmax <- max(eq$Y * 1.5, 1000)
+    ymax <- xmax # 45度線なので正方形に近い方が見やすい
+
+    plot(
+      0,
+      0,
+      type = "n",
+      xlim = c(0, xmax),
+      ylim = c(0, ymax),
+      xlab = "国民所得 (Y)",
+      ylab = "総支出 (AE)",
+      main = "財市場の均衡 (45度線分析)"
+    )
+    grid()
+    abline(0, 1, col = "gray", lty = 2) # 45度線
+
+    # AE曲線: AE = Intercept + cY
+    curve(Intercept + input$c * x, add = TRUE, col = "blue", lwd = 2)
+
+    # 均衡点
+    points(eq$Y, eq$Y, pch = 19, col = "black", cex = 1.5)
+    text(eq$Y, eq$Y, labels = paste0("Y* = ", round(eq$Y, 0)), pos = 4)
+    legend(
+      "topleft",
+      legend = c("45度線 (Y=AE)", "総支出 (AE)"),
+      col = c("gray", "blue"),
+      lty = c(2, 1),
+      lwd = 2
+    )
+  })
+
+  # 2. 貨幣市場
+  output$moneyPlot <- renderPlot({
+    eq <- calc_equilibrium()
+    set_font()
+
+    # 横軸: 名目マネーサプライ M, 縦軸: 利子率 r
+    # 貨幣需要 (名目): Md = P * (kY - hr) => r = (kY - Md/P)/h
+    # グラフ用逆関数 r(M) = (kY/h) - (1/Ph)*M
+
+    # 描画範囲
+    M_max <- max(input$M * 1.5, 1000)
+    r_max <- max(eq$r * 2, 10, na.rm = TRUE)
+    if (r_max < 0) {
+      r_max <- 10
+    }
+
+    plot(
+      0,
+      0,
+      type = "n",
+      xlim = c(0, M_max),
+      ylim = c(0, r_max),
+      xlab = "名目貨幣供給量 (M)",
+      ylab = "利子率 (r, %)",
+      main = "貨幣市場の均衡"
+    )
+    grid()
+
+    # 貨幣供給曲線 (垂直)
+    abline(v = input$M, col = "red", lwd = 3)
+
+    # 貨幣需要曲線 (所与のY*の下での需要)
+    # r = (k*Y* - M/P) / h
+    # 変数xは名目貨幣量Mに相当
+    curve(
+      (input$k * eq$Y - (x / input$P)) / input$h,
+      from = 0,
+      to = M_max,
+      add = TRUE,
+      col = "green",
+      lwd = 2
+    )
+
+    # 均衡点
+    points(input$M, eq$r, pch = 19, col = "black", cex = 1.5)
+    text(input$M, eq$r, labels = paste0("r* = ", round(eq$r, 1), "%"), pos = 4)
+    legend(
+      "topright",
+      legend = c("貨幣供給 (Ms)", "貨幣需要 (L)"),
+      col = c("red", "green"),
+      lwd = c(3, 2)
+    )
+  })
+
   output$islmPlot <- renderPlot({
     eq <- calc_equilibrium()
 
     # 表示範囲の動的設定
-    xmax <- max(eq$Y * 1.5, 1000)
-    ymax <- max(eq$r * 1.5, 10) # 最低でも10%までは表示
-    if (ymax < 0) {
+    ymax <- max(eq$r * 1.5, 10, na.rm = TRUE) # 最低でも10%までは表示
+    if (is.na(ymax) || ymax < 0) {
       ymax <- 10
-    } # 負の場合の調整
+    } # 負またはNAの場合の調整
+
+    # 表示範囲の上限
+    xmax <- max(eq$Y * 1.5, 1000, na.rm = TRUE)
 
     # Mac用の日本語フォント設定
-    if (Sys.info()["sysname"] == "Darwin") {
-      par(family = "HiraKakuProN-W3")
-    }
+    set_font()
 
     # キャンバスの作成
     plot(
