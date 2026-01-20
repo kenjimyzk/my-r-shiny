@@ -1008,13 +1008,13 @@
   },
   "files": {
     ".Rprofile": {
-      "checksum": "9e01397a1ff4a7b74ff1c7d19e0e2e7e"
+      "checksum": "2935429bf0222303b47d27ec3ec8bc7e"
     },
     "app.R": {
       "checksum": "78ec9ecdcd88d46399f387a9f6103881"
     },
     "generate_manifest.R": {
-      "checksum": "1e4bf9a7dfcbd85c1f14e811a1b8c1da"
+      "checksum": "16f373b0c05eb09a40a1c9b982b9b88a"
     },
     "ISLM.R": {
       "checksum": "30877d46ac5c7e90667dba47f57b0665"
